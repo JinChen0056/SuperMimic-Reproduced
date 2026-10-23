@@ -129,3 +129,13 @@ LAFAN1第二个checkpoint（iteration4000，1584次联合更新，约20分钟训
 目标`.213`配置：RTX4090 / 48GiB、Ubuntu22.04、Python3.12.13，依赖仍为原uv.lock（torch2.14.1+cu130 / Warp1.18 / mjlab固定commit）。代码由Git bundle同步，6.74GB紧凑库经LAN复制后SHA256与本机一致。复用本机uv缓存，离线安装完成；远端11项预检测试通过，CUDA、torch.compile和反向传播通过。
 
 该机已加载内核驱动595.91.07，系统用户态库却是595.99.02。为避免重启或修改系统，将NVIDIA官方595.91.07 redistributable解压至项目 `data/toolchain/nvidia-595.91.07`，通过 `nvidia-active` 链接和仅本进程的 `LD_LIBRARY_PATH` 使用。注意同时提供 `libcuda.so` 和 `libcuda.so.1`：Warp优先dlopen前者，而PyTorch使用后者，两者必须指向同一匹配版本。该目录不提交Git；来源为 `https://developer.download.nvidia.com/compute/nvidia-driver/redist/nvidia_driver/linux-x86_64/nvidia_driver-linux-x86_64-595.91.07-archive.tar.xz`。系统库和内核未改动。
+
+## LAFAN1 三小时结果与 BONES-SEED 中期结果
+
+LAFAN1已于2026-10-23 19:50（本地时间）完成训练及评测，退出码0。实际训练43,750个向量仿真步、17,484次联合更新，预算3小时（非320,000步完整训练）。最终40条整段mean return **0.592232**、length-weighted **0.590156**，失败 **1/40**；失败动作 `fight1_subject2` 在5457/12243个参考transition处终止。尚未达到论文Fig.4的0.82目标，且LAFAN1评测时限仍有前述未决项。
+
+奖励诊断：相对身体位置奖励约为该项上限96%，身体朝向约80%，线/角速度各约58–59%；全局root位置约5.5%、root朝向约21.6%。因此相对身体姿态已较好，但全局根部漂移及速度误差仍显著。优先检查goal坐标表示/相对根部信息和速度跟踪；这是依据分项奖励提出的诊断方向，不是已证明的失败原因。论文未给出足够完整的goal特征定义，当前680维表征属于本复现的实现选择。
+
+BONES-SEED第34,000步checkpoint（约2.5小时）在固定seed0的2000条子集上：mean return **0.872287**、length-weighted **0.8657**，失败 **17/2000**，1983条完成整段。为不干扰远端训练，将该checkpoint和相同子集拷到本机空闲GPU离线评测；两机均为RTX4090，软件锁定相同，驱动版本不同，故该结果标记为本机离线诊断。结果存于 `logs/bones_remote_eval/benchmark_subset2000_ckpt_0034000_local.json`。远端3小时训练尚未结束，结束后原计划会在远端评测固定子集及全库。
+
+LAFAN1与BONES-SEED的动作长度/难度分布不同，不能用BONES子集0.8723超过LAFAN1目标0.82宣称复现成功。BONES主结果仍需对照论文全量回报、失败分组及精确筛选范围；当前筛选差异仍为多429条、少0.81h。
