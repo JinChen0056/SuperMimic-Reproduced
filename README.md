@@ -1,5 +1,7 @@
 # SuperMimic-Reproduced
 
+本机复现审计（2026-10-23）：见 [论文与两库比较、分阶段执行计划](docs/REPRODUCTION_AUDIT_20261023.md)。本分支修正 benchmark 提前失败的归一化分母、完整长度聚合权重及参考结束后的额外步累计；下文历史成绩来自上游旧版指标，需要重新评测。运行 `scripts/reproduction/run_local_validation.sh` 可在依赖就绪后依次完成测试、数据转换、冒烟训练和评测。
+
 > **English summary.** An independent from-scratch reproduction of *SuperMimic* (arXiv:2610.28480): a learned differentiable world model plus short-horizon BPTT actor-critic for Unitree G1 whole-body motion tracking, built on [mjlab](https://github.com/mujocolab/mjlab) / MuJoCo Warp. Includes the data pipeline (LAFAN1, BONES-SEED 129.9k clips), differentiable FK and analytic reward heads, the world model and imagination trainer, torchrun data-parallel training, the Appendix-F benchmark, and an interactive replay viewer. On LAFAN1 it reaches the paper's 0.82 tracking score in 1.66 h on one RTX 5090 (with anchor-relative observations; paper-observation runs are in progress). Documentation is in Chinese; see `docs/` for the paper spec, plan, review log and experiment log.
 
 从零复现论文 **SuperMimic: Scaling Humanoid Whole-Body Control with One Differentiable World Model**（[arXiv:2610.28480](https://arxiv.org/abs/2610.28480)，CoRL 2026）：一个学习得到的可微世界模型 + 短视野 BPTT actor-critic，用于 Unitree G1 人形全身动作跟踪。底座是 [mjlab](https://github.com/mujocolab/mjlab)（MuJoCo Warp），固定到 commit `8bb2bc9`；不使用 rsl_rl，世界模型、BPTT 训练器、多 clip 动作库、基于回报的重置采样、评测全部自己实现。
