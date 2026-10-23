@@ -77,6 +77,7 @@ class SuperMimicEnvCfgArgs:
     action_noise_std: float = 0.1
     obs_noise: bool = True
     reset_noise: bool = True
+    reset_joint_limits: str = "soft"  # Hard mode retains valid poses outside soft limits.
     domain_randomization: bool = True
     sampling_mode: str = "return"  # return | uniform | start
     replay_capacity: int = 1000
@@ -153,6 +154,7 @@ def make_env_cfg(a: SuperMimicEnvCfgArgs) -> ManagerBasedRlEnvCfg:
             pose_range=pose_range if a.reset_noise else {},
             velocity_range=vel_range if a.reset_noise else {},
             joint_position_range=(-0.1, 0.1) if a.reset_noise else (0.0, 0.0),
+            reset_joint_limits=a.reset_joint_limits,
             sampling_mode=a.sampling_mode,  # type: ignore[arg-type]
             compact_library=a.compact_library,
             debug_vis=a.debug_vis,

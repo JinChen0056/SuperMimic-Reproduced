@@ -27,6 +27,7 @@ class EnvCfg:
     action_noise_std: float = 0.1
     obs_noise: bool = True
     reset_noise: bool = True
+    reset_joint_limits: str = "soft"
     domain_randomization: bool = True
     sampling_mode: str = "return"
     replay_capacity: int = 1000
@@ -38,6 +39,7 @@ class EnvCfg:
 @dataclass
 class ScheduleCfg:
     total_iterations: int = 320_000  # env steps (plan D12 reading A)
+    stop_at_iteration: int | None = None  # Short experiments without shortening the LR schedule.
     updates_per_env_step: float = 0.4  # UTD
     policy_updates_per_wm_update: int = 1
     warmup_iterations: int = 40  # env steps before the first update (fills k-step windows)
@@ -63,3 +65,4 @@ class TrainConfig:
     policy_trainer: PolicyTrainerCfg = field(default_factory=PolicyTrainerCfg)
     schedule: ScheduleCfg = field(default_factory=ScheduleCfg)
     resume: Path | None = None
+    warm_start: Path | None = None  # Model weights/curriculum only; fresh optimizers and counters.

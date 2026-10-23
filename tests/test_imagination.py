@@ -60,6 +60,12 @@ def test_training_smoke(tmp_path):
         tr.env.close()
         tr2 = Trainer(cfg2)
         assert tr2.iteration == 60
+        # Resume with an empty replay buffer must collect fresh windows before updating.
+        from dataclasses import replace
+        tr2.cfg.schedule = replace(cfg2.schedule, total_iterations=90)
+        updates_before_resume = tr2.num_updates
+        tr2.run()
+        assert tr2.iteration == 90 and tr2.num_updates > updates_before_resume
         tr2.env.close()
     finally:
         pass

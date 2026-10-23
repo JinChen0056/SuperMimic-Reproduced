@@ -28,6 +28,8 @@ from supermimic.world_model.world_model import WorldModel
 class Trainer:
     def __init__(self, cfg: TrainConfig):
         self.cfg = cfg
+        if cfg.resume is not None and cfg.warm_start is not None:
+            raise ValueError("choose either resume or warm_start")
         cfg.policy.goal_dim = cfg.env.future_frames * 68 + (9 if cfg.env.anchor_obs else 0)
         cfg.policy_trainer.anchor_obs = cfg.env.anchor_obs
         self.rank, local_rank, self.world = init_distributed()
@@ -62,6 +64,7 @@ class Trainer:
                 action_noise_std=cfg.env.action_noise_std,
                 obs_noise=cfg.env.obs_noise,
                 reset_noise=cfg.env.reset_noise,
+                reset_joint_limits=cfg.env.reset_joint_limits,
                 domain_randomization=cfg.env.domain_randomization,
                 sampling_mode=cfg.env.sampling_mode,
                 replay_capacity=cfg.env.replay_capacity,
@@ -100,6 +103,13 @@ class Trainer:
         self._utd_acc = 0.0
         if cfg.resume is not None:
             self.load(cfg.resume)
+        elif cfg.warm_start is not None:
+            from supermimic.training.checkpoints import warm_start_models
+            ck = torch.load(cfg.warm_start, map_location=self.device, weights_only=False)
+            warm_start_models(self.wm, self.policy, self.critic, ck)
+            self.command.bin_return.copy_(ck["bin_return"])
+            self.command.bin_memory.copy_(ck["bin_memory"])
+            print(f"[INFO] warm-started models/curriculum from {cfg.warm_start}; fresh optimizers/counters")
 
     # ------------------------------------------------------------------ checkpoints
 
@@ -155,8 +165,10 @@ class Trainer:
         finished_returns: list[float] = []
         finished_lens: list[float] = []
         last_log = time.time()
+        collected_steps = 0  # Replay is freshly allocated, including after checkpoint resume.
 
-        while self.iteration < sch.total_iterations:
+        stop_at = min(sch.total_iterations, sch.stop_at_iteration) if sch.stop_at_iteration is not None else sch.total_iterations
+        while self.iteration < stop_at:
             # ---------------- (1) collect one vectorised env step
             t0 = time.perf_counter()
             action = self.act(obs)
@@ -175,9 +187,10 @@ class Trainer:
             torch.cuda.synchronize()
             timers["sim"] += time.perf_counter() - t0
             self.iteration += 1
+            collected_steps += 1
 
             # ---------------- (2)+(3) updates at the configured update-to-data ratio
-            if self.iteration >= sch.warmup_iterations:
+            if collected_steps >= sch.warmup_iterations:
                 self._utd_acc += sch.updates_per_env_step
                 while self._utd_acc >= 1.0:
                     self._utd_acc -= 1.0

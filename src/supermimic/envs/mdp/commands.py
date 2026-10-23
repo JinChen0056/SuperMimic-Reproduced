@@ -274,8 +274,12 @@ class MultiClipMotionCommand(CommandTerm):
         return f
 
     def _write_reference_state_to_sim(self, env_ids, root_pos, root_ori, root_lin_vel, root_ang_vel, joint_pos, joint_vel):
-        soft_limits = self.robot.data.soft_joint_pos_limits[env_ids]
-        joint_pos = torch.clip(joint_pos, soft_limits[:, :, 0], soft_limits[:, :, 1])
+        mode = self.cfg.reset_joint_limits
+        if mode not in ("soft", "hard"):
+            raise ValueError(f"unknown reset joint limit mode: {mode}")
+        limits = self.robot.data.soft_joint_pos_limits if mode == "soft" else self.robot.data.joint_pos_limits
+        limits = limits[env_ids]
+        joint_pos = torch.clip(joint_pos, limits[:, :, 0], limits[:, :, 1])
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
         root_state = torch.cat([root_pos, root_ori, root_lin_vel, root_ang_vel], dim=-1)
         self.robot.write_root_state_to_sim(root_state, env_ids=env_ids)
@@ -406,6 +410,7 @@ class MultiClipMotionCommandCfg(CommandTermCfg):
     pose_range: dict[str, tuple[float, float]] = field(default_factory=dict)
     velocity_range: dict[str, tuple[float, float]] = field(default_factory=dict)
     joint_position_range: tuple[float, float] = (0.0, 0.0)
+    reset_joint_limits: Literal["soft", "hard"] = "soft"
     sampling_mode: Literal["return", "uniform", "start"] = "return"
     # Return-based sampling (plan D14).
     uniform_ratio: float = 0.5

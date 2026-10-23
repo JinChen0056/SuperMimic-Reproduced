@@ -48,7 +48,7 @@ def load_policy_from_checkpoint(path: str | Path, device: str) -> tuple[Policy, 
 
 
 @torch.no_grad()
-def run_benchmark(policy: Policy, npz_files: list[str], device: str = "cuda:0", num_envs: int | None = None, future_frames: int = 10, verbose: bool = True, anchor_obs: bool = False) -> list[ClipResult]:
+def run_benchmark(policy: Policy, npz_files: list[str], device: str = "cuda:0", num_envs: int | None = None, future_frames: int = 10, verbose: bool = True, anchor_obs: bool = False, reset_joint_limits: str = "soft") -> list[ClipResult]:
     compact = len(npz_files) == 1 and Path(npz_files[0]).suffix == ".pt"
     if compact:
         metadata = torch.load(npz_files[0], map_location="cpu", mmap=True, weights_only=False)
@@ -67,6 +67,7 @@ def run_benchmark(policy: Policy, npz_files: list[str], device: str = "cuda:0", 
         action_noise_std=0.0,
         obs_noise=False,
         reset_noise=False,
+        reset_joint_limits=reset_joint_limits,
         domain_randomization=False,
         sampling_mode="start",
         record_transitions=False,
@@ -153,5 +154,8 @@ def summarize(results: list[ClipResult]) -> dict:
     return out
 
 
-def save_results(results: list[ClipResult], path: str | Path) -> None:
-    Path(path).write_text(json.dumps({"summary": summarize(results), "clips": [asdict(r) for r in results]}, indent=1))
+def save_results(results: list[ClipResult], path: str | Path, protocol: dict | None = None) -> None:
+    data = {"summary": summarize(results), "clips": [asdict(r) for r in results]}
+    if protocol is not None:
+        data["protocol"] = protocol
+    Path(path).write_text(json.dumps(data, indent=1))

@@ -13,7 +13,7 @@ from supermimic.envs.mdp.motion_library import discover_npz
 from supermimic.eval.benchmark import load_policy_from_checkpoint, run_benchmark, save_results, summarize
 
 
-def main(ckpt: Path, npz_dir: Path = Path("data/npz/lafan1"), clips: list[str] | None = None, clip_list: Path | None = None, manifest: Path | None = None, num_envs: int = 1024, device: str = "cuda:0", out: Path | None = None, library: Path | None = None) -> None:
+def main(ckpt: Path, npz_dir: Path = Path("data/npz/lafan1"), clips: list[str] | None = None, clip_list: Path | None = None, manifest: Path | None = None, num_envs: int = 1024, device: str = "cuda:0", out: Path | None = None, library: Path | None = None, reset_joint_limits: str = "soft") -> None:
     if clip_list is not None:
         clips = [l.strip() for l in open(clip_list) if l.strip()]
     if library is not None:
@@ -23,7 +23,7 @@ def main(ckpt: Path, npz_dir: Path = Path("data/npz/lafan1"), clips: list[str] |
     else:
         files = [str(f) for f in discover_npz(npz_dir, names=clips, manifest=manifest)]
     policy, cfg = load_policy_from_checkpoint(ckpt, device)
-    results = run_benchmark(policy, files, device=device, num_envs=num_envs, future_frames=cfg["env"]["future_frames"], anchor_obs=cfg["env"].get("anchor_obs", False))
+    results = run_benchmark(policy, files, device=device, num_envs=num_envs, future_frames=cfg["env"]["future_frames"], anchor_obs=cfg["env"].get("anchor_obs", False), reset_joint_limits=reset_joint_limits)
     s = summarize(results)
     print(f"\n{s['clips']} clips | failed {s['failed']} | mean norm return {s['mean_norm_return']:.4f} | step-weighted {s['step_weighted_norm_return']:.4f}")
     if "terms" in s:
@@ -34,7 +34,7 @@ def main(ckpt: Path, npz_dir: Path = Path("data/npz/lafan1"), clips: list[str] |
     for r in worst:
         print(f"  {r.name:32s} ret {r.norm_return:.3f} steps {r.steps}/{r.frames} {'FAIL@' + str(r.fail_step) if r.failed else ''}")
     out = out or ckpt.parent / f"benchmark_{ckpt.stem}.json"
-    save_results(results, out)
+    save_results(results, out, protocol={"checkpoint": str(ckpt), "reset_joint_limits": reset_joint_limits, "anchor_obs": cfg["env"].get("anchor_obs", False)})
     print("saved", out)
 
 
