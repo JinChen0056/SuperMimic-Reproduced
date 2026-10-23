@@ -101,3 +101,23 @@ env -u PYTHONPATH uv run python scripts/eval_benchmark.py --ckpt logs/lafan1_str
 - 冒烟评测完成：3 clips全长口径 mean return 0.001869，weighted 0.001712，3/3失败；各clip仅存活41–46步。极短训练不应有跟踪能力，此结果用于验证早失败不再获得虚高分。
 - 完整基线入口：`bash scripts/reproduction/run_lafan1_strict.sh`，固定seed0，默认4096env、完整网络、k8/H32、93维本体历史，无额外anchor输入，3小时训练预算，每2000仿真步checkpoint，结束后评测40条动作。
 - 保存/恢复与编译训练测试通过（195s，含首次编译）。合计28项不同测试通过，0跳过；原工具链失败已复测通过。正式基线现在可启动。
+
+## BONES-SEED 数据准备与首轮真实评测
+
+官方来源：https://huggingface.co/datasets/bones-studio/seed ，已查询并记录 revision `2f59b2077b9da34dd4e43618e705c7cb962c9a66`。本机已有原始归档，不重复下载或修改：
+
+- G1压缩包：`/home/mai-4090-02/chenjin/mainchain/data/bones_seed/source/g1.tar.gz`，23,499,973,647 bytes；实际 SHA256 与官方 LFS SHA256 完全一致：`52580ea8bced72ea9e2ff1e7b68f01c51c7f1099581e9a46b7c87e1dec106d8a`。
+- metadata v004：142,220 条，288.3208h @120Hz；实际 SHA256 与官方一致：`7cbe5624f91ae19af3feee69cff74b2cf553fb26367c8edc4b674c3d8ea97e7d`。
+- 新入口 `scripts/reproduction/prepare_bones_stream.py`：逐条读取归档，用原转换器处理厘米/欧拉角度/关节角度与120→50Hz重采样、FK和可行性筛选，再直接追加到fp16紧凑状态库。仅临时保留每worker一份CSV/NPZ，不全量解压，归档只读。保留逐条筛选manifest；磁盘保留8GiB，最终atomic打包时检查额外空间。
+- 前128条端到端试运行：117条保留，数据有限且名字唯一；第一条保留动作的紧凑状态与原CSV→NPZ→pack流程逐元素相同。随后已启动全量处理，CPU nice=15、4workers，与现有GPU训练并行。
+- **筛选尚未严格对齐**：现有代码名称筛选后130,137条，论文129,667条，差470；完整筛选后统计另行记录。源码未公开精确的保留动作清单，不能为凑条数随机删除动作。当前产物命名为近似筛选版本，不据此声称完全复现主结果。
+
+LAFAN1首个正式checkpoint（iteration2000，784次联合更新，约11分钟，含初始编译）：40条完整动作评测 mean return **0.0067**、length-weighted **0.0062**、**40/40失败**。这是早期结果，尚未复现论文效果。评测与训练短暂同卡并行，本次运行不用于严格的GPU效率比较。训练episodic return与模型误差是诊断量，不能替代完整clip评测。
+
+数据条数与耗时不能按比例换算：LAFAN1的40条共2.45h，平均每条约220s；BONES-SEED的142,220条共288.32h，平均每条约7.3s。在线训练使用固定env数、固定batch的重复交互与更新，并非一次遍历静态数据的监督训练。
+
+评测协议的未决项：论文 Appendix F 明确描述的是 BONES-SEED benchmark；LAFAN1 的 Fig.4 只明确写了对40条clip打分，未给出是否整条播放或评测episode时限。本分支当前将 Appendix F 的首帧整条播放规则用于 LAFAN1，属于明确记录的实现选择，不能称为已逐项对齐作者的 LAFAN1 evaluator。后续比较必须同时说明这一点。
+
+全量准备结果（本机实跑）：142,220条全部处理；名称过滤130,137条，几何可行性再去除194条（elevated132 / penetration46 / floating16），最终 **129,943条 / 263.7538h / 47,475,680帧@50Hz**。相对论文129,514条 / 264.56h，多429条、少0.8062h；不能称为精确筛选复现。紧凑库6.74GB（6.3GiB），处理与打包611.7秒，原归档保持只读。完整manifest覆盖142,220条；CPU训练加载器已验证clip/frame数量，抽取首/中/尾状态生成的10帧goal为有限的 `(3,680)`。最终统计与校验在 `data/library/bones_seed_compact.summary.json`，尚未启动BONES-SEED训练。
+
+LAFAN1第二个checkpoint（iteration4000，1584次联合更新，约20分钟训练，含编译）：40条整段评测 mean return **0.2741**、length-weighted **0.2850**、**29/40失败**，11条完成整段；平均执行时长由首checkpoint的2.64秒增加到161.54秒。该指标明显改善，但未达论文0.82目标；原3小时基线继续运行。第二次评测仍与训练同卡重叠，故墙钟速度仅作运行诊断。
