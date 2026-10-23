@@ -5,7 +5,7 @@
 - Origin Skill: academic-research-suite / experiment-agent + karpathy-guidelines
 - Origin Mode: run / reproducibility diagnosis
 - Origin Date: 2026-10-24
-- Verification Status: 代码修复已验证；训练改进效果待对照评测
+- Verification Status: 代码修复34项测试通过；2000步配对评测确认增强goal改善；5000步与BONES续训进行中
 
 ## 已验证的问题
 
@@ -48,3 +48,21 @@ BONES后续将从原checkpoint续训，先保持原goal和物理配置，仅修�
 初始接触静态CPU检查（705失败+705随机成功，完全相同场景模型）中：失败组13条初始ncon>35、1条nefc>250，成功组分别1条/0条。**nconmax是共享接触池的容量估计，单环境ncon>35不代表溢出**；njmax才是逐环境约束上限。该检查不能证明轨迹运行中发生过溢出，因此未据此改变物理容量或求解器。
 
 受控goal实验结束后，`.213`排队执行原BONES最终checkpoint续训2小时，保留原goal和soft reset，修复终止标签和空buffer预热。最终仍评测同一2000条子集及全库。该续训结果包含额外训练计算，不能把全部收益归因于标签修复。
+
+## 2,000步中期配对结果（2026-10-24 06:52 CST）
+
+同一评测主机4090-02、40env、完整40条动作、soft reset、相同确定性评测配置：
+
+| 模型 | 追加向量步 / 联合更新 | Mean return | 长度加权return | 失败 |
+|---|---:|---:|---:|---:|
+| 原LAFAN最终checkpoint | 0 | 0.592232 | 0.590156 | 1/40 |
+| 修复标签、原680维goal对照 | 2000 / 784 | 0.565777 | 0.565180 | 4/40 |
+| 修复标签、689维增强goal | 2000 / 784 | **0.873711** | **0.879119** | 1/40 |
+
+两个新模型均从同一原模型权重/课程采样器warm-start、重置优化器，以相同步数训练；增强组新增首层权重初始为0，初始函数与对照相同。训练分别运行在本机与213，评测统一在本机；这是单seed结果，不能作多seed统计显著性结论。
+
+增强组相对原checkpoint增加0.28148 return，相对相同步数对照增加0.30793。根位置每步奖励从原0.000550提高到0.007795（上限0.01），根朝向从0.002160提高到0.009611（上限0.01）；线速度/角速度也同步改善。完整动作中的唯一失败是dance1_subject1的5805/6573步，与原模型失败动作不同。
+
+这验证了增加相对根位姿反馈对当前实现的有效性；修复标签本身未在该短程试验中改善return。不能把增强goal结果称作论文严格复现，也不能把前10秒诊断分数与本表完整动作分数混用。最终5000步模型仍将评测；BONES原goal修正版追加2h训练已在213排队。
+
+原始JSON：`logs/lafan_goal_anchor_20261024/benchmark_mid2000.json`、`logs/lafan_goal_control_snapshot/benchmark_mid2000.json`；汇总：`../../artifacts/goal_ablation_mid2000_summary.json`。
