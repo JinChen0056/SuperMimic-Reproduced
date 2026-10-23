@@ -13,10 +13,15 @@ from supermimic.envs.mdp.motion_library import discover_npz
 from supermimic.eval.benchmark import load_policy_from_checkpoint, run_benchmark, save_results, summarize
 
 
-def main(ckpt: Path, npz_dir: Path = Path("data/npz/lafan1"), clips: list[str] | None = None, clip_list: Path | None = None, manifest: Path | None = None, num_envs: int = 1024, device: str = "cuda:0", out: Path | None = None) -> None:
+def main(ckpt: Path, npz_dir: Path = Path("data/npz/lafan1"), clips: list[str] | None = None, clip_list: Path | None = None, manifest: Path | None = None, num_envs: int = 1024, device: str = "cuda:0", out: Path | None = None, library: Path | None = None) -> None:
     if clip_list is not None:
         clips = [l.strip() for l in open(clip_list) if l.strip()]
-    files = [str(f) for f in discover_npz(npz_dir, names=clips, manifest=manifest)]
+    if library is not None:
+        if clips is not None or manifest is not None:
+            raise ValueError("build a packed subset first; clip selectors apply only to NPZ input")
+        files = [str(library)]
+    else:
+        files = [str(f) for f in discover_npz(npz_dir, names=clips, manifest=manifest)]
     policy, cfg = load_policy_from_checkpoint(ckpt, device)
     results = run_benchmark(policy, files, device=device, num_envs=num_envs, future_frames=cfg["env"]["future_frames"], anchor_obs=cfg["env"].get("anchor_obs", False))
     s = summarize(results)

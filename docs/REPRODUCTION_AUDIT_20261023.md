@@ -121,3 +121,11 @@ LAFAN1首个正式checkpoint（iteration2000，784次联合更新，约11分钟�
 全量准备结果（本机实跑）：142,220条全部处理；名称过滤130,137条，几何可行性再去除194条（elevated132 / penetration46 / floating16），最终 **129,943条 / 263.7538h / 47,475,680帧@50Hz**。相对论文129,514条 / 264.56h，多429条、少0.8062h；不能称为精确筛选复现。紧凑库6.74GB（6.3GiB），处理与打包611.7秒，原归档保持只读。完整manifest覆盖142,220条；CPU训练加载器已验证clip/frame数量，抽取首/中/尾状态生成的10帧goal为有限的 `(3,680)`。最终统计与校验在 `data/library/bones_seed_compact.summary.json`，尚未启动BONES-SEED训练。
 
 LAFAN1第二个checkpoint（iteration4000，1584次联合更新，约20分钟训练，含编译）：40条整段评测 mean return **0.2741**、length-weighted **0.2850**、**29/40失败**，11条完成整段；平均执行时长由首checkpoint的2.64秒增加到161.54秒。该指标明显改善，但未达论文0.82目标；原3小时基线继续运行。第二次评测仍与训练同卡重叠，故墙钟速度仅作运行诊断。
+
+## 第二台机器的 BONES-SEED 并行训练
+
+新增 `scripts/reproduction/run_bones_strict.sh`：默认 seed0、4096 env、policy batch4096、完整网络、k8/H32、论文93维本体观测，无额外anchor。训练预算3小时，结束后先评测固定seed0的2000条子集，再评测全库。`scripts/eval_benchmark.py --library <packed.pt>` 现在直接支持紧凑库，并按库内clip数量设置并行环境；新增回归测试验证多clip库不会被当成单clip。`build_bones_eval_subset.py` 固定抽样索引与名字manifest。本机新增路径验证：5项benchmark测试通过，8条真实BONES动作的packed-library评测完整跑通。
+
+目标`.213`配置：RTX4090 / 48GiB、Ubuntu22.04、Python3.12.13，依赖仍为原uv.lock（torch2.14.1+cu130 / Warp1.18 / mjlab固定commit）。代码由Git bundle同步，6.74GB紧凑库经LAN复制后SHA256与本机一致。复用本机uv缓存，离线安装完成；远端11项预检测试通过，CUDA、torch.compile和反向传播通过。
+
+该机已加载内核驱动595.91.07，系统用户态库却是595.99.02。为避免重启或修改系统，将NVIDIA官方595.91.07 redistributable解压至项目 `data/toolchain/nvidia-595.91.07`，通过 `nvidia-active` 链接和仅本进程的 `LD_LIBRARY_PATH` 使用。注意同时提供 `libcuda.so` 和 `libcuda.so.1`：Warp优先dlopen前者，而PyTorch使用后者，两者必须指向同一匹配版本。该目录不提交Git；来源为 `https://developer.download.nvidia.com/compute/nvidia-driver/redist/nvidia_driver/linux-x86_64/nvidia_driver-linux-x86_64-595.91.07-archive.tar.xz`。系统库和内核未改动。

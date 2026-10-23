@@ -2,6 +2,12 @@
 unset PYTHONPATH
 export OMP_NUM_THREADS=${OMP_NUM_THREADS:-4}
 export PYTHONUNBUFFERED=1
+# Optional process-local NVIDIA libraries matching the loaded kernel driver.
+sm_driver_lib="$PWD/data/toolchain/nvidia-active/lib"
+if [[ -f "$sm_driver_lib/libcuda.so.1" ]]; then
+  export LD_LIBRARY_PATH="$sm_driver_lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
+unset sm_driver_lib
 # Ubuntu's runtime-only Python may lack headers needed by Triton. Use a local
 # extraction of libpython3.12-dev; no sudo or system package changes required.
 sm_header_root="$PWD/data/toolchain/python312/usr/include"

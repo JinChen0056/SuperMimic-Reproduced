@@ -59,3 +59,24 @@ def test_benchmark_ignores_steps_after_reference_horizon(monkeypatch):
     assert result.steps == 3
     assert not result.failed
     assert env.closed
+
+
+def test_packed_library_uses_motion_count_and_compact_environment(tmp_path, monkeypatch):
+    import torch
+    import supermimic.eval.benchmark as benchmark
+
+    path = tmp_path / "three_motions.pt"
+    torch.save({"names": ["a", "b", "c"]}, path)
+
+    class CheckedEnvironment(Exception):
+        pass
+
+    def check_env(args, device):
+        assert args.num_envs == 2
+        assert args.compact_library
+        assert args.npz_files == [str(path)]
+        raise CheckedEnvironment
+
+    monkeypatch.setattr(benchmark, "make_env", check_env)
+    with pytest.raises(CheckedEnvironment):
+        benchmark.run_benchmark(None, [str(path)], device="cpu", num_envs=2)

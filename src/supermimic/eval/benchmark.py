@@ -49,7 +49,16 @@ def load_policy_from_checkpoint(path: str | Path, device: str) -> tuple[Policy, 
 
 @torch.no_grad()
 def run_benchmark(policy: Policy, npz_files: list[str], device: str = "cuda:0", num_envs: int | None = None, future_frames: int = 10, verbose: bool = True, anchor_obs: bool = False) -> list[ClipResult]:
-    num_envs = min(num_envs or 1024, len(npz_files))
+    compact = len(npz_files) == 1 and Path(npz_files[0]).suffix == ".pt"
+    if compact:
+        metadata = torch.load(npz_files[0], map_location="cpu", mmap=True, weights_only=False)
+        motion_count = len(metadata["names"])
+        del metadata
+    else:
+        motion_count = len(npz_files)
+    if motion_count == 0:
+        raise ValueError("benchmark needs at least one motion")
+    num_envs = min(num_envs or 1024, motion_count)
     args = SuperMimicEnvCfgArgs(
         npz_files=npz_files,
         num_envs=num_envs,
@@ -63,6 +72,7 @@ def run_benchmark(policy: Policy, npz_files: list[str], device: str = "cuda:0", 
         record_transitions=False,
         seed=0,
         anchor_obs=anchor_obs,
+        compact_library=compact,
     )
     env = make_env(args, device=device)
     try:
